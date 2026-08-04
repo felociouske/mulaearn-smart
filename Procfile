@@ -1,2 +1,1 @@
-web: gunicorn mulaearn_backend.wsgi --log-file -
-release: python manage.py migrate --noinput && python manage.py collectstatic --noinput
+web: python manage.py collectstatic --noinput && python manage.py migrate --noinput && gunicorn mulaearn_backend.wsgi --log-file -
