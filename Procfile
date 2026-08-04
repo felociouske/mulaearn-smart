@@ -1,0 +1,1 @@
+web: gunicorn mulaearn_backend.wsgi --log-file -
