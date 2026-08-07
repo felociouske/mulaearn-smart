@@ -1,20 +1,30 @@
 from rest_framework import serializers
 
+from activation.models import PaymentGateway
 from .models import DepositRequest, WithdrawalRequest
 
 
 class DepositRequestSerializer(serializers.ModelSerializer):
+    # Client sends gateway_id for manual deposits (which of their
+    # country's active payment methods they used) — required for manual,
+    # ignored for the Daraja STK flow (that path creates its own
+    # DepositRequest directly in InitiateDepositSTKPushView, not through
+    # this serializer's create path).
+    gateway_id = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentGateway.objects.filter(is_active=True), source="gateway",
+        write_only=True, required=False, allow_null=True,
+    )
+
     class Meta:
         model = DepositRequest
-        fields = ["id", "method", "amount", "currency_code", "proof_message", "status", "created_at"]
+        fields = [
+            "id", "method", "amount", "currency_code", "gateway_id",
+            "gateway_group", "gateway_display_name", "proof_message", "status", "created_at",
+        ]
         # method is read-only — CreateDepositRequestView always forces it to
-        # PaymentMethod.MANUAL server-side (this serializer is only used for
-        # the manual-proof flow; the Daraja STK push endpoint creates its
-        # own DepositRequest directly with method=AUTOMATIC_DARAJA). Since
-        # it's never actually meant to come from the client, requiring it
-        # as input just broke every manual submission with a confusing
-        # "this field is required" error the frontend never sent.
-        read_only_fields = ["id", "method", "status", "created_at"]
+        # PaymentMethod.MANUAL server-side; the Daraja STK push endpoint
+        # creates its own DepositRequest directly with method=AUTOMATIC_DARAJA.
+        read_only_fields = ["id", "method", "gateway_group", "gateway_display_name", "status", "created_at"]
 
 
 class WithdrawalRequestSerializer(serializers.ModelSerializer):

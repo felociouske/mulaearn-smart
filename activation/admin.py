@@ -1,37 +1,71 @@
 from django.contrib import admin
 
-from .models import ActivationSubmission, PaymentGateway
+from .models import (
+    ActivationSubmission,
+    GhanaNigeriaPaymentGateway,
+    KenyaPaymentGateway,
+    OtherPaymentGateway,
+    UgandaTanzaniaPaymentGateway,
+)
 
 
-@admin.register(PaymentGateway)
-class PaymentGatewayAdmin(admin.ModelAdmin):
+class BaseGatewayAdmin(admin.ModelAdmin):
     """
-    This is the "update payment gateways with ease" screen: add a row per
-    country/rail, fill in till/paybill/phone + instructions, tick
-    is_active. No code or deploy needed to add a country or change a
-    till number.
+    Shared list-view behaviour for all four gateway admins below — this is
+    the "update payment methods with ease" screen: tick is_active, reorder,
+    edit description, no code or deploy needed.
     """
-    list_display = ("country", "display_name", "method_type", "is_automatic", "is_active", "order")
-    list_filter = ("country", "method_type", "is_automatic", "is_active")
+    list_display = ("country", "display_name", "is_active", "order")
+    list_filter = ("country", "is_active")
     list_editable = ("is_active", "order")
     search_fields = ("display_name", "country__name")
     ordering = ("country", "order")
+
+
+@admin.register(KenyaPaymentGateway)
+class KenyaPaymentGatewayAdmin(BaseGatewayAdmin):
+    list_display = BaseGatewayAdmin.list_display + ("is_automatic",)
+    list_filter = BaseGatewayAdmin.list_filter + ("is_automatic",)
     fieldsets = (
-        (None, {"fields": ("country", "method_type", "display_name", "is_automatic", "is_active", "order")}),
-        ("Destination details", {
-            "fields": ("till_number", "paybill_number", "account_reference", "recipient_name", "recipient_phone"),
-            "description": "Fill in only the fields this rail actually needs; leave the rest blank.",
-        }),
-        ("Instructions shown to the user", {"fields": ("instructions",)}),
+        (None, {"fields": ("country", "display_name", "is_automatic", "is_active", "order")}),
+        ("Till / paybill details", {"fields": ("till_number", "paybill_number", "account_reference")}),
+        ("Shown to the user — activation page AND deposit page", {"fields": ("description",)}),
+    )
+
+
+@admin.register(UgandaTanzaniaPaymentGateway)
+class UgandaTanzaniaPaymentGatewayAdmin(BaseGatewayAdmin):
+    fieldsets = (
+        (None, {"fields": ("country", "display_name", "is_active", "order")}),
+        ("Recipient details", {"fields": ("recipient_name", "recipient_phone")}),
+        ("Shown to the user — activation page AND deposit page", {"fields": ("description",)}),
+    )
+
+
+@admin.register(GhanaNigeriaPaymentGateway)
+class GhanaNigeriaPaymentGatewayAdmin(BaseGatewayAdmin):
+    fieldsets = (
+        (None, {"fields": ("country", "display_name", "is_active", "order")}),
+        ("Eversend details", {"fields": ("eversend_link", "recipient_name")}),
+        ("Shown to the user — activation page AND deposit page", {"fields": ("description",)}),
+    )
+
+
+@admin.register(OtherPaymentGateway)
+class OtherPaymentGatewayAdmin(BaseGatewayAdmin):
+    fieldsets = (
+        (None, {"fields": ("country", "display_name", "is_active", "order")}),
+        ("Recipient details", {"fields": ("recipient_name", "recipient_phone")}),
+        ("Shown to the user — activation page AND deposit page", {"fields": ("description",)}),
     )
 
 
 @admin.register(ActivationSubmission)
 class ActivationSubmissionAdmin(admin.ModelAdmin):
-    list_display = ("user", "method_type", "amount", "currency_code", "status", "created_at")
-    list_filter = ("method_type", "status", "currency_code")
+    list_display = ("user", "gateway_display_name", "amount", "currency_code", "status", "created_at")
+    list_filter = ("gateway_group", "status", "currency_code")
     search_fields = ("user__username", "user__email", "reference_code")
-    readonly_fields = ("created_at", "reviewed_at", "reviewed_by")
+    readonly_fields = ("created_at", "reviewed_at", "reviewed_by", "gateway_group", "gateway_display_name")
     actions = ["approve_selected", "reject_selected"]
 
     @admin.action(description="Approve selected activation submissions")

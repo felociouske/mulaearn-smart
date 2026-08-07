@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsActivated
+from activation.models import GatewayGroup, KenyaPaymentGateway
 from . import daraja
 from .models import DepositRequest, WithdrawalRequest, PaymentMethod
 from .serializers import DepositRequestSerializer, WithdrawalRequestSerializer
@@ -14,16 +15,44 @@ from .serializers import DepositRequestSerializer, WithdrawalRequestSerializer
 class CreateDepositRequestView(generics.CreateAPIView):
     """
     POST /api/payments/deposits/create/
+    Body: {"amount": ..., "currency_code": ..., "gateway_id": ..., "proof_message": "..."}
+
     Manual deposits land here as PENDING and wait for you to approve them
-    in admin (which credits deposit_balance). Automatic Daraja deposits
-    will get their own callback endpoint later — not built yet, since
-    that needs real Daraja credentials to test against.
+    in admin (which credits deposit_balance). gateway_id must be one of
+    the caller's own country's active payment methods — same table the
+    activation flow reads from (GET /api/activation/gateways/), so the
+    deposit page and activation page always show identical options.
     """
     serializer_class = DepositRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user, method=PaymentMethod.MANUAL)
+        user = self.request.user
+        gateway = serializer.validated_data.get("gateway")
+
+        if not gateway:
+            raise DRFValidationError({"gateway_id": ["Select a payment method."]})
+
+        country = user.country
+        if not country or gateway.country_id != country.id:
+            raise DRFValidationError({"gateway_id": ["That payment option isn't available for your country."]})
+
+        # Kenya's automatic (Daraja) row must go through the STK push
+        # endpoint instead — this view is the manual-proof path only.
+        if gateway.group == GatewayGroup.KENYA:
+            kenya_gateway = KenyaPaymentGateway.objects.filter(pk=gateway.pk).first()
+            if kenya_gateway and kenya_gateway.is_automatic:
+                raise DRFValidationError({
+                    "gateway_id": ["Use the M-Pesa STK push option to pay instantly with this method."]
+                })
+
+        serializer.save(
+            user=user,
+            method=PaymentMethod.MANUAL,
+            gateway=gateway,
+            gateway_group=gateway.group,
+            gateway_display_name=gateway.display_name,
+        )
 
 
 class MyDepositRequestsView(generics.ListAPIView):
@@ -37,12 +66,13 @@ class MyDepositRequestsView(generics.ListAPIView):
 class InitiateDepositSTKPushView(APIView):
     """
     POST /api/payments/deposits/stkpush/  { "amount": 100 }
-    Creates a pending DepositRequest, triggers the till-number STK push,
-    and returns immediately — the user gets a prompt on their phone to
-    enter their M-Pesa PIN. The deposit isn't credited yet at this point;
-    that only happens once Safaricom calls DarajaCallbackView below.
+    Creates a pending DepositRequest tagged to Kenya's active automatic
+    gateway row, triggers the till-number STK push, and returns
+    immediately — the user gets a prompt on their phone to enter their
+    M-Pesa PIN. The deposit isn't credited yet at this point; that only
+    happens once Safaricom calls DarajaCallbackView below.
     KES only (Daraja doesn't support other currencies), so this assumes
-    the caller is in Kenya — same as your Nexcribe STK integration.
+    the caller is in Kenya.
     """
     permission_classes = [permissions.IsAuthenticated, IsActivated]
 
@@ -54,11 +84,22 @@ class InitiateDepositSTKPushView(APIView):
         if not request.user.phone_number:
             raise DRFValidationError({"detail": ["No phone number on file — add one before depositing."]})
 
+        gateway = (
+            KenyaPaymentGateway.objects.filter(country__code="KE", is_automatic=True, is_active=True)
+            .order_by("order")
+            .first()
+        )
+        if not gateway:
+            raise DRFValidationError({"detail": ["M-Pesa instant deposits aren't available right now — try the manual option."]})
+
         deposit = DepositRequest.objects.create(
             user=request.user,
             method=PaymentMethod.AUTOMATIC_DARAJA,
             amount=amount,
             currency_code="KES",
+            gateway=gateway,
+            gateway_group=gateway.group,
+            gateway_display_name=gateway.display_name,
         )
 
         try:
@@ -155,15 +196,7 @@ class CreateWithdrawalRequestView(generics.CreateAPIView):
     instead of silently creating a request that can never be fulfilled:
 
       1. WithdrawalRequest.clean() — the Ksh 200-equivalent minimum.
-      2. A live balance check against the wallet_type requested — this
-         was previously MISSING, and was the root cause of "withdraw
-         doesn't work": a user could request more than they had, the
-         request would be accepted as "pending", and it would only fail
-         (with an uncaught error that crashed the admin bulk-approve
-         action) once an admin tried to approve it — by which point the
-         user had already been sitting on a stuck request with no
-         explanation. Now it's rejected immediately, with a clear reason,
-         same as the minimum-amount check.
+      2. A live balance check against the wallet_type requested.
     """
     serializer_class = WithdrawalRequestSerializer
     permission_classes = [permissions.IsAuthenticated, IsActivated]
@@ -193,10 +226,6 @@ class CreateWithdrawalRequestView(generics.CreateAPIView):
         if not user.phone_number:
             raise DRFValidationError({"detail": ["No phone number on file — contact customer care to set one before withdrawing."]})
 
-        # destination_details is always the user's own registered phone
-        # number — never anything the client sends (see the serializer's
-        # read_only_fields comment). Changing the payout number requires
-        # contacting customer care, who update phone_number directly.
         instance = serializer.save(user=user, destination_details=user.phone_number)
         try:
             instance.full_clean(exclude=["status", "reviewed_by", "reviewed_at"])

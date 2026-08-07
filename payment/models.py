@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import models
 from django.core.exceptions import ValidationError
 
+from activation.models import GatewayGroup, PaymentGateway
 from wallets.models import Transaction
 
 # Minimum withdrawal in KES-equivalent, per your instruction — this is
@@ -27,8 +28,9 @@ class RequestStatus(models.TextChoices):
 class DepositRequest(models.Model):
     """
     A deposit, either:
-      - manual: user submits a payment message/proof, admin reviews and
-        approves, deposit_balance is credited on approval.
+      - manual: user picks one of their country's active payment gateways
+        (see activation.models.PaymentGateway) and submits proof; admin
+        reviews and approves, deposit_balance is credited on approval.
       - automatic_daraja: created + auto-resolved by the Daraja STK push
         callback (Kenya only, for now).
     """
@@ -36,6 +38,17 @@ class DepositRequest(models.Model):
     method = models.CharField(max_length=20, choices=PaymentMethod.choices)
     amount = models.DecimalField(max_digits=10, decimal_places=2)  # in the user's local currency
     currency_code = models.CharField(max_length=5)  # snapshot of Country.currency_code at request time
+
+    # Which country payment method this deposit used — same
+    # activation.PaymentGateway table the activation flow uses, so Kenya,
+    # Uganda/Tanzania, Ghana/Nigeria (Eversend), and Other all share one
+    # FK here instead of four separate nullable FKs.
+    gateway = models.ForeignKey(
+        PaymentGateway, on_delete=models.SET_NULL, null=True, blank=True, related_name="deposit_requests"
+    )
+    # Snapshots — survive the gateway row later being edited or deleted.
+    gateway_group = models.CharField(max_length=20, choices=GatewayGroup.choices, blank=True)
+    gateway_display_name = models.CharField(max_length=100, blank=True)
 
     # Manual-only fields
     proof_message = models.TextField(blank=True, help_text="The payment confirmation message the user submitted")

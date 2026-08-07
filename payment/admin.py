@@ -6,8 +6,8 @@ from .models import DepositRequest, WithdrawalRequest
 
 @admin.register(DepositRequest)
 class DepositRequestAdmin(admin.ModelAdmin):
-    list_display = ("user", "method", "amount", "currency_code", "status", "created_at")
-    list_filter = ("method", "status", "currency_code")
+    list_display = ("user", "method", "gateway_display_name", "amount", "currency_code", "status", "created_at")
+    list_filter = ("method", "gateway_group", "status", "currency_code")
     search_fields = ("user__username",)
     actions = ["approve_selected"]
 
@@ -36,11 +36,6 @@ class WithdrawalRequestAdmin(admin.ModelAdmin):
 
     @admin.action(description="Approve selected withdrawal requests")
     def approve_selected(self, request, queryset):
-        # A single request with an insufficient balance (e.g. the wallet
-        # dropped after the request was made, or an old request slipped
-        # past the balance check that used to be missing) must not stop
-        # the rest of the batch from being approved — each one gets its
-        # own try/except and a clear message back to the admin.
         succeeded, failed = 0, []
         for w in queryset.filter(status="pending"):
             try:

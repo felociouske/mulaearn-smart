@@ -1,26 +1,36 @@
 from rest_framework import generics, permissions
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import ActivationStatus, ActivationSubmission, PaymentGateway
-from .serializers import ActivationSubmissionSerializer, PaymentGatewaySerializer
+from .models import ActivationStatus, ActivationSubmission, GROUP_MODEL, group_for_country
+from .serializers import ActivationSubmissionSerializer, serializer_for_group
 
 
-class MyActivationGatewaysView(generics.ListAPIView):
+class MyActivationGatewaysView(APIView):
     """
     GET /api/activation/gateways/
     Active payment options for the caller's own country, ordered for
-    display. An empty list means the country isn't wired up yet — the
-    frontend should fall back to a "Coming soon, contact support" message
-    rather than an empty form.
+    display. An empty list means the country isn't wired up yet (or every
+    row for it is currently inactive) — the frontend should fall back to
+    a "Coming soon, contact support" message rather than an empty form.
+
+    This is also the endpoint the DEPOSIT page calls (see payment app) —
+    one query, one serializer, one description field, so activation and
+    deposit can never show different text for the same payment method.
     """
-    serializer_class = PaymentGatewaySerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
-        user = self.request.user
-        if not user.country_id:
-            return PaymentGateway.objects.none()
-        return PaymentGateway.objects.filter(country_id=user.country_id, is_active=True)
+    def get(self, request):
+        country = request.user.country
+        group = group_for_country(country)
+        if not group:
+            return Response([])
+
+        model = GROUP_MODEL[group]
+        serializer_class = serializer_for_group(group)
+        queryset = model.objects.filter(country_id=country.id, is_active=True).order_by("order")
+        return Response(serializer_class(queryset, many=True).data)
 
 
 class MyActivationSubmissionsView(generics.ListAPIView):
@@ -63,7 +73,8 @@ class SubmitActivationView(generics.CreateAPIView):
 
         serializer.save(
             user=user,
-            method_type=gateway.method_type,
+            gateway_group=gateway.group,
+            gateway_display_name=gateway.display_name,
             amount=country.activation_fee,
             currency_code=country.currency_code,
         )
