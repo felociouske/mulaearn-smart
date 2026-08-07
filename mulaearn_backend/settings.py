@@ -108,13 +108,12 @@ else:
 
 STORAGES = {
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
     },
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
-
 
 # --- Custom user model ---
 # Must point here before the first `migrate` — Django can't swap the user
@@ -211,3 +210,24 @@ DARAJA_PASSKEY = config("DARAJA_PASSKEY", default="")
 DARAJA_CALLBACK_URL = config(
     "DARAJA_CALLBACK_URL", default="https://example.com/api/payments/deposits/daraja-callback/"
 )
+
+
+# --- Cloudflare R2 (S3-compatible) storage for user-uploaded media ---
+AWS_ACCESS_KEY_ID = config("R2_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = config("R2_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = config("R2_BUCKET_NAME", default="fortunex-kyc")
+AWS_S3_ENDPOINT_URL = f"https://{config('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com"
+
+# R2 doesn't support S3 ACLs, so this must stay None or uploads will error
+AWS_DEFAULT_ACL = None
+
+# Signature v4 is required by R2
+AWS_S3_SIGNATURE_VERSION = "s3v4"
+AWS_S3_REGION_NAME = "auto"
+
+# Since the bucket is private, every .url call generates a temporary
+# signed URL rather than a permanent public one -- exactly what we want
+# for KYC documents. Link expires after 1 hour; regenerated fresh
+# each time admin.py calls obj.front_image.url etc.
+AWS_QUERY_STRING_AUTH = True
+AWS_QUERY_STRING_EXPIRE = 3600  # seconds
