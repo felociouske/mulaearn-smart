@@ -11,7 +11,7 @@ class MyReferredUsersView(generics.ListAPIView):
     GET /api/referrals/referred-users/
     Everyone who signed up under the caller's referral code — including
     ones who never purchased a plan (those just show 0 commission
-    earned). Email/phone come back masked (see ReferredUserSerializer).
+    earned). Email/phone come back in full (see ReferredUserSerializer).
     """
     serializer_class = ReferredUserSerializer
     permission_classes = [permissions.IsAuthenticated]

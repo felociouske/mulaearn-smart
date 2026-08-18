@@ -17,7 +17,7 @@ MINIMUM_WITHDRAWAL_KES = Decimal("200.00")
 class PaymentMethod(models.TextChoices):
     MANUAL = "manual", "Manual (proof submitted, admin-approved)"
     AUTOMATIC_DARAJA = "automatic_daraja", "Automatic — Safaricom Daraja"
-
+    AUTOMATIC_BLUEPAY = "automatic_bluepay", "Automatic — BluePay (M-Pesa)"
 
 class RequestStatus(models.TextChoices):
     PENDING = "pending", "Pending"
@@ -57,6 +57,10 @@ class DepositRequest(models.Model):
     daraja_checkout_request_id = models.CharField(max_length=100, blank=True)
     daraja_receipt_number = models.CharField(max_length=100, blank=True)
 
+    bluepay_checkout_request_id = models.CharField(max_length=100, blank=True)
+    bluepay_stk_request_id = models.CharField(max_length=100, blank=True)
+    bluepay_receipt_number = models.CharField(max_length=100, blank=True)
+
     status = models.CharField(max_length=10, choices=RequestStatus.choices, default=RequestStatus.PENDING)
     reviewed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="deposits_reviewed"
@@ -82,11 +86,19 @@ class DepositRequest(models.Model):
         if self.status != RequestStatus.PENDING:
             raise ValidationError(f"Cannot approve a deposit request that is already {self.status}.")
 
+        # Any non-manual method (BluePay today, Daraja historically) maps
+        # to the same DEPOSIT_AUTOMATIC transaction type — the ledger only
+        # distinguishes "did a human approve this" from "did a gateway",
+        # not which gateway. wallets.models.Transaction's choice label
+        # still reads "(Daraja)" cosmetically; that's a display string
+        # only and doesn't affect behavior, safe to relabel separately
+        # later if you want it to say "(BluePay)" instead.
         transaction_type = (
-            Transaction.TransactionType.DEPOSIT_AUTOMATIC
-            if self.method == PaymentMethod.AUTOMATIC_DARAJA
-            else Transaction.TransactionType.DEPOSIT_MANUAL
+            Transaction.TransactionType.DEPOSIT_MANUAL
+            if self.method == PaymentMethod.MANUAL
+            else Transaction.TransactionType.DEPOSIT_AUTOMATIC
         )
+        
         self.user.wallet.credit(
             wallet_type="deposit",
             amount=self.amount,

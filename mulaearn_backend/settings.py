@@ -196,6 +196,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # plain API Key — reviews/tmdb.py sends it as a Bearer token.
 TMDB_API_READ_ACCESS_TOKEN = config("TMDB_API_READ_ACCESS_TOKEN", default="")
 
+BLUEPAY_BASE_URL = config("BLUEPAY_BASE_URL", "https://bluepay.co.ke")
+BLUEPAY_API_SECRET = config("BLUEPAY_API_SECRET")
+BLUEPAY_CHANNEL_ID = config("BLUEPAY_CHANNEL_ID")
+
 
 # --- Daraja (M-Pesa till-number instant deposits) ---
 # DARAJA_ENV: "sandbox" while testing, "production" once you have live

@@ -194,6 +194,21 @@ class ActivationSubmission(models.Model):
     daraja_checkout_request_id = models.CharField(max_length=100, blank=True)
     daraja_receipt_number = models.CharField(max_length=100, blank=True)
 
+    # Automatic (Daraja) fields — left in place but unused now that
+    # automatic activation goes through BluePay instead (see the
+    # bluepay_* fields below). Kept for history on any old rows and as
+    # an easy rollback path, not because anything still writes to them.
+    daraja_checkout_request_id = models.CharField(max_length=100, blank=True)
+    daraja_receipt_number = models.CharField(max_length=100, blank=True)
+
+    # Automatic (BluePay) fields — populated by InitiateActivationBluepayPushView
+    # (activation/views.py) when the STK push is sent; bluepay_receipt_number
+    # and the actual approve()/reject() call come from BluepayCallbackView
+    # (bluepay/views.py) once BluePay's webhook confirms the payment.
+    bluepay_checkout_request_id = models.CharField(max_length=100, blank=True)
+    bluepay_stk_request_id = models.CharField(max_length=100, blank=True)
+    bluepay_receipt_number = models.CharField(max_length=100, blank=True)
+
     status = models.CharField(max_length=10, choices=ActivationStatus.choices, default=ActivationStatus.PENDING)
     admin_notes = models.TextField(blank=True)
     reviewed_by = models.ForeignKey(

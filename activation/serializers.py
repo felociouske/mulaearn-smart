@@ -63,13 +63,15 @@ class ActivationSubmissionSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
-        model = ActivationSubmission
-        fields = [
-            "id", "gateway_id", "gateway_group", "gateway_display_name",
-            "amount", "currency_code", "reference_code", "proof_message",
-            "status", "admin_notes", "created_at", "reviewed_at",
-        ]
-        read_only_fields = [
-            "id", "gateway_group", "gateway_display_name", "amount", "currency_code",
-            "status", "admin_notes", "created_at", "reviewed_at",
-        ]
+            model = ActivationSubmission
+            fields = [
+                "id", "gateway_id", "gateway_group", "gateway_display_name",
+                "amount", "currency_code", "reference_code", "proof_message",
+                "bluepay_receipt_number",
+                "status", "admin_notes", "created_at", "reviewed_at",
+            ]
+            read_only_fields = [
+                "id", "gateway_group", "gateway_display_name", "amount", "currency_code",
+                "bluepay_receipt_number",
+                "status", "admin_notes", "created_at", "reviewed_at",
+            ]

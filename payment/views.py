@@ -10,6 +10,8 @@ from activation.models import GatewayGroup, KenyaPaymentGateway
 from . import daraja
 from .models import DepositRequest, WithdrawalRequest, PaymentMethod
 from .serializers import DepositRequestSerializer, WithdrawalRequestSerializer
+from bluepay import client as bluepay_client
+from bluepay.client import BluepayError
 
 
 class CreateDepositRequestView(generics.CreateAPIView):
@@ -61,6 +63,74 @@ class MyDepositRequestsView(generics.ListAPIView):
 
     def get_queryset(self):
         return DepositRequest.objects.filter(user=self.request.user)
+
+
+class InitiateDepositBluepayPushView(APIView):
+    """
+    POST /api/payments/deposits/stkpush/  { "amount": 100 }
+    BluePay replaces Daraja as the automatic-deposit gateway — same URL,
+    same request/response shape as the old InitiateDepositSTKPushView
+    below (which is left in place, unrouted, purely as a reference /
+    easy rollback — nothing calls it any more, see urls.py), so nothing
+    on the frontend has to change to pick this up.
+
+    Creates a PENDING DepositRequest tagged to Kenya's active automatic
+    gateway row FIRST, then triggers the BluePay STK push — the deposit
+    id has to exist before the push fires so it can be used to build the
+    account_reference BluePay needs (see bluepay/client.py). The deposit
+    isn't credited yet at this point; that only happens once
+    BluepayCallbackView (bluepay/views.py) confirms success.
+    KES only (BluePay/M-Pesa doesn't support other currencies), so this
+    assumes the caller is in Kenya — same constraint the old Daraja path had.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsActivated]
+
+    def post(self, request):
+        amount = request.data.get("amount")
+        if not amount or int(amount) <= 0:
+            raise DRFValidationError({"amount": ["Enter a whole-number amount in KES greater than 0."]})
+
+        if not request.user.phone_number:
+            raise DRFValidationError({"detail": ["No phone number on file — add one before depositing."]})
+
+        gateway = (
+            KenyaPaymentGateway.objects.filter(country__code="KE", is_automatic=True, is_active=True)
+            .order_by("order")
+            .first()
+        )
+        if not gateway:
+            raise DRFValidationError({"detail": ["M-Pesa instant deposits aren't available right now — try the manual option."]})
+
+        deposit = DepositRequest.objects.create(
+            user=request.user,
+            method=PaymentMethod.AUTOMATIC_BLUEPAY,
+            amount=amount,
+            currency_code="KES",
+            gateway=gateway,
+            gateway_group=gateway.group,
+            gateway_display_name=gateway.display_name,
+        )
+
+        try:
+            result = bluepay_client.initiate_stk_push(
+                phone_number=request.user.phone_number,
+                amount=amount,
+                account_reference=f"DEP-{deposit.id}",
+            )
+        except BluepayError as e:
+            deposit.status = "rejected"
+            deposit.save(update_fields=["status"])
+            raise DRFValidationError({"detail": [f"Couldn't start the M-Pesa prompt: {e}"]})
+
+        deposit.bluepay_stk_request_id = str(result["stk_request_id"])
+        deposit.bluepay_checkout_request_id = result["checkout_request_id"]
+        deposit.save(update_fields=["bluepay_stk_request_id", "bluepay_checkout_request_id"])
+
+        return Response({
+            "deposit_id": deposit.id,
+            "checkout_request_id": result["checkout_request_id"],
+            "message": "Check your phone and enter your M-Pesa PIN to complete the payment.",
+        }, status=202)
 
 
 class InitiateDepositSTKPushView(APIView):
