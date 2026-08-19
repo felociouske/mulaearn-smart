@@ -24,7 +24,7 @@ class Country(models.Model):
     # KES, this is 0.037. Used to convert the KES-denominated minimum
     # withdrawal into each country's local currency for display/enforcement.
     # Update these manually in admin as rates move — no live FX feed for MVP.
-    exchange_rate_to_kes = models.DecimalField(max_digits=10, decimal_places=6, default=1.0)
+    exchange_rate_to_kes = models.DecimalField(max_digits=10, decimal_places=6, default=Decimal("1.0"))
     # Marks the Kenya/Uganda/Tanzania/Ghana/Nigeria rows vs the catch-all
     # "international" bucket you described — lets the frontend group them.
     is_international_bucket = models.BooleanField(default=False)

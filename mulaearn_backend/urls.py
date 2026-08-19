@@ -18,6 +18,7 @@ urlpatterns = [
     path("api/reviews/", include("reviews.urls")),
     path("api/payments/", include("payment.urls")),
     path("api/referrals/", include("referrals.urls")),
+    path("api/loans/", include("loans.urls")),
 ]
 
 if settings.DEBUG:

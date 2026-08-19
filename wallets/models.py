@@ -147,8 +147,10 @@ class Transaction(models.Model):
         MOVIE_REVIEW_EARNING = "movie_review_earning", "Movie review earning"
         REFERRAL_COMMISSION = "referral_commission", "Referral commission"
         PLAN_PURCHASE = "plan_purchase", "Plan purchase"
-        REFUND = "refund", "Refund"
         ADMIN_ADJUSTMENT = "admin_adjustment", "Admin adjustment"
+        LOAN_PLAN_PURCHASE = "loan_plan_purchase", "Loan plan purchase"
+        LOAN_DISBURSEMENT = "loan_disbursement", "Loan disbursement"
+        REFUND = "refund", "Refund"
 
     # Credits that count toward the lifetime "Total Yield" figure. Deposits,
     # withdrawals, plan purchases, refunds, and admin adjustments do NOT —
