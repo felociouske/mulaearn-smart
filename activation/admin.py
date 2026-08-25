@@ -76,6 +76,8 @@ class ActivationSubmissionAdmin(admin.ModelAdmin):
             count += 1
         self.message_user(request, f"Approved {count} activation submission(s).")
 
+        
+
     @admin.action(description="Reject selected activation submissions")
     def reject_selected(self, request, queryset):
         count = 0
