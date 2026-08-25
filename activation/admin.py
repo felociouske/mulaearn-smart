@@ -41,7 +41,6 @@ class UgandaTanzaniaPaymentGatewayAdmin(BaseGatewayAdmin):
         ("Shown to the user — activation page AND deposit page", {"fields": ("description",)}),
     )
 
-
 @admin.register(GhanaNigeriaPaymentGateway)
 class GhanaNigeriaPaymentGatewayAdmin(BaseGatewayAdmin):
     fieldsets = (
@@ -50,7 +49,6 @@ class GhanaNigeriaPaymentGatewayAdmin(BaseGatewayAdmin):
         ("Shown to the user — activation page AND deposit page", {"fields": ("description",)}),
     )
 
-
 @admin.register(OtherPaymentGateway)
 class OtherPaymentGatewayAdmin(BaseGatewayAdmin):
     fieldsets = (
@@ -58,7 +56,6 @@ class OtherPaymentGatewayAdmin(BaseGatewayAdmin):
         ("Recipient details", {"fields": ("recipient_name", "recipient_phone")}),
         ("Shown to the user — activation page AND deposit page", {"fields": ("description",)}),
     )
-
 
 @admin.register(ActivationSubmission)
 class ActivationSubmissionAdmin(admin.ModelAdmin):
@@ -75,8 +72,6 @@ class ActivationSubmissionAdmin(admin.ModelAdmin):
             submission.approve(reviewed_by=request.user)
             count += 1
         self.message_user(request, f"Approved {count} activation submission(s).")
-
-        
 
     @admin.action(description="Reject selected activation submissions")
     def reject_selected(self, request, queryset):
