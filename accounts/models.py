@@ -57,6 +57,20 @@ class Country(models.Model):
         rate = self.exchange_rate_to_kes or Decimal("1.0")
         return (Decimal(amount_kes) / rate).quantize(Decimal("0.01"))
 
+    def convert_to_kes(self, amount_local):
+        """
+        The inverse of convert_from_kes() — converts an amount in THIS
+        country's local currency into canonical KES, using the same
+        exchange_rate_to_kes. Needed by DepositRequest.approve() and
+        WithdrawalRequest.approve() (payment/models.py), which store
+        `amount` in local currency but credit/debit wallet balances that
+        are canonical KES.
+        """
+        from decimal import Decimal
+
+        rate = self.exchange_rate_to_kes or Decimal("1.0")
+        return (Decimal(amount_local) * rate).quantize(Decimal("0.01"))
+
 
 class User(AbstractUser):
     """

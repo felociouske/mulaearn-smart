@@ -98,12 +98,22 @@ class DepositRequest(models.Model):
             if self.method == PaymentMethod.MANUAL
             else Transaction.TransactionType.DEPOSIT_AUTOMATIC
         )
-        
+
+        # self.amount is in the user's LOCAL currency (see field comment
+        # above) — deposit_balance is canonical KES, same as every other
+        # balance/price in the system. Without this conversion, e.g. a
+        # Uganda user depositing UGX 45000 was being credited 45000
+        # KES-worth to deposit_balance — treated as if 1 KES = 1 UGX.
+        # See accounts.models.Country.convert_to_kes (the inverse of
+        # convert_from_kes) — add that method there if it isn't present yet.
+        country = self.user.country
+        amount_kes = country.convert_to_kes(self.amount) if country else self.amount
+
         self.user.wallet.credit(
             wallet_type="deposit",
-            amount=self.amount,
+            amount=amount_kes,
             transaction_type=transaction_type,
-            description=f"Deposit request #{self.pk}",
+            description=f"Deposit request #{self.pk} ({self.amount} {self.currency_code})",
         )
         self.status = RequestStatus.APPROVED
         self.reviewed_by = reviewed_by
@@ -166,11 +176,16 @@ class WithdrawalRequest(models.Model):
         if self.status != RequestStatus.PENDING:
             raise ValidationError(f"Cannot approve a withdrawal request that is already {self.status}.")
 
+        # Same bug/fix as DepositRequest.approve() above — self.amount is
+        # local currency, wallet balances are canonical KES.
+        country = self.user.country
+        amount_kes = country.convert_to_kes(self.amount) if country else self.amount
+
         self.user.wallet.debit(
             wallet_type=self.wallet_type,
-            amount=self.amount,
+            amount=amount_kes,
             transaction_type=Transaction.TransactionType.WITHDRAWAL,
-            description=f"Withdrawal request #{self.pk}",
+            description=f"Withdrawal request #{self.pk} ({self.amount} {self.currency_code})",
         )
         self.status = RequestStatus.APPROVED
         self.reviewed_by = reviewed_by
