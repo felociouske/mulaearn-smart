@@ -115,7 +115,7 @@ class InitiateDepositBluepayPushView(APIView):
             result = bluepay_client.initiate_stk_push(
                 phone_number=request.user.phone_number,
                 amount=amount,
-                account_reference=f"DEP-{deposit.id}",
+                account_reference=f"BP-{deposit.id}",
             )
         except BluepayError as e:
             deposit.status = "rejected"
