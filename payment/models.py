@@ -120,6 +120,22 @@ class DepositRequest(models.Model):
         self.reviewed_at = timezone.now()
         self.save(update_fields=["status", "reviewed_by", "reviewed_at"])
 
+    def reject(self, reviewed_by=None):
+        """
+        Marks a pending deposit as rejected. No wallet reversal needed here —
+        unlike approve(), a pending deposit never touched deposit_balance in
+        the first place (only approve() calls wallet.credit()), so this is a
+        pure status flip. Same pattern as WithdrawalRequest.reject() below.
+        """
+        from django.utils import timezone
+
+        if self.status != RequestStatus.PENDING:
+            raise ValidationError(f"Cannot reject a deposit request that is already {self.status}.")
+        self.status = RequestStatus.REJECTED
+        self.reviewed_by = reviewed_by
+        self.reviewed_at = timezone.now()
+        self.save(update_fields=["status", "reviewed_by", "reviewed_at"])
+
 
 class WithdrawalRequest(models.Model):
     """
