@@ -58,7 +58,7 @@ class BluepayCallbackView(APIView):
         try:
             if account_reference.startswith("ACT-"):
                 self._handle_activation(event, data, account_reference)
-            elif account_reference.startswith("DEP-"):
+            elif account_reference.startswith(("DEP-", "BP-")):
                 self._handle_deposit(event, data, account_reference)
             else:
                 logger.warning("BluePay webhook with unrecognized account_reference: %r", account_reference)
@@ -97,7 +97,7 @@ class BluepayCallbackView(APIView):
     def _handle_deposit(self, event, data, account_reference):
         from payment.models import DepositRequest, RequestStatus
 
-        deposit_id = account_reference[len("DEP-"):]
+        deposit_id = account_reference.split("-", 1)[1]
         deposit = DepositRequest.objects.filter(pk=deposit_id, status=RequestStatus.PENDING).first()
         if not deposit:
             logger.warning("BluePay deposit webhook for unknown/already-resolved deposit: %s", account_reference)

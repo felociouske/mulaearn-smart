@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import timedelta
 import dj_database_url
 from decouple import config, Csv
+import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -18,6 +19,7 @@ ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv(
 
 # --- Applications ---
 INSTALLED_APPS = [
+    'daphne',  # ASGI server for Django Channels
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -45,6 +47,7 @@ INSTALLED_APPS = [
     "payment",
     "referrals",
     "loans",
+    'notifications',
 ]
 
 MIDDLEWARE = [
@@ -88,6 +91,18 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels.layers.InMemoryChannelLayer",
     },
 }
+
+
+if os.environ.get("REDIS_URL"):
+    # Production (Railway): add the Redis plugin; it exposes REDIS_URL.
+    CHANNEL_LAYERS = {"default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [os.environ["REDIS_URL"]]},
+    }}
+else:
+    # Local dev only. In-memory does NOT work across multiple processes.
+    CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+
 
 DATABASE_URL = config("DATABASE_URL", default=None)
 
